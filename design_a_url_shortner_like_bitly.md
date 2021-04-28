@@ -104,3 +104,5 @@ So 7-Character short URL Code = Substring(Base62(Random ID), 0, 7)
     - Zookeeper keeps configuration of each node.
     - It knows which are the active services and which services are down,
     - It assigns a unique ID to each service.
+
+4. We can even use UUIDv4
