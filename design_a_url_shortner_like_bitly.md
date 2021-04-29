@@ -105,4 +105,38 @@ So 7-Character short URL Code = Substring(Base62(Random ID), 0, 7)
     - It knows which are the active services and which services are down,
     - It assigns a unique ID to each service.
 
-4. We can even use UUIDv4
+4. We can even use UUIDv4 to avoid inctroducing Zookeeper into the system - a third component that's not necessary.
+
+## Actual System Design (Using Counters Way)
+### Components
+1. Load balancers to load balance incoming requests among multiple app servers
+2. 3 or more App servers that contain actual business logic to transform a short URL to a long URL and vice-verse.
+3. Cache (Redis/Memcached) that stores mapping between a long URL or short URL
+4. Zookeeper cluster (assuming that we will go the counters way to generate a unique ID)
+5. NoSQL DB for storing the URL data. Set the replicator factor and consistency level (e.g 3) appropriately to ensure that a quorum of nodes always gives the correct results.
+    - We can use an RDBMS here as well. Since we have a fixed structure of records.
+    - We can use MySQL with  a database clustering system like Vitess.
+
+### Interaction between the App server and Zookeeper
+1. When each instance of the service comes up, it registers itself with Zookeeper. 
+2. Zookeeper provides each service with an ID. 
+3. The Zookeeper cluster is preconfigured with a range of Unique ID values to be alloted to each instance of service.
+
+       S1       1 Lac to 5 Lac
+       S3       5,00,001 to 10 Lacs
+       S4       10,00,0001 to 15 Lacs
+                15,00,0001 to 20 Laks
+                20,00,0001 to 25,00,000 Lacs
+
+    
+    The remaining ranges are un-used.
+4. So each instance can generate unique IDs only within the alloted range. If the ranges get used, the next unused range is alloted to the server.
+5. In this way there won't be any collisions and you also don't need to check for the presence of unique ID for a different URL to be already present in the DB.
+
+### System design architecture diagram
+
+## REST APIs
+
+1. PUT /url/create/short
+
+2. GET /url/long
