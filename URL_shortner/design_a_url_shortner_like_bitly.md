@@ -1,6 +1,8 @@
 # Design a URL shortener like bit.ly
 
-# Credits: https://www.youtube.com/watch?v=JQDHz72OA3c (26:00)
+# Credits: 
+- https://www.youtube.com/watch?v=JQDHz72OA3c
+- https://www.youtube.com/watch?v=fMZMm_0ZhK4
 
 ## Introduction
 All-in-all, this appears to have an 
@@ -57,7 +59,7 @@ We have to generate a 7 char random ID for each URL viz. http://www.ly.com/XXXXX
     - MD5 may lead to collisions wherein two different long URLs have the same hash. The theoratical probablity of collision is if you generate 6 billion hashes per second, a collision can happen in 100 years. However, now its artificially possible to generate MD5 collisions (https://www.avira.com/en/blog/md5-the-broken-algorithm#:~:text=MD5%3A%20The%20fastest%20and%20shortest,%3A%201.47*10%2D29.&text=SHA256%3A%20The%20slowest%2C%20usually%2060,generated%20hash%20(32%20bytes). All we need is time, hardware and proper software.
     - Even if we don't get the entire hash collision, the first 7 characters of any generated hash can be same.
 
-2. Base62: Base62 uses 62 characters (A-Z, a-z and 0-9). We get 62^7 ~ 3.5 trillion different combinations. If we generate 1000 URLs per second, the system will last to 110 years 
+2. Base62: Base62 uses 62 characters (A-Z, a-z and 0-9). We get 62^7 ~ 3.5 trillion different combinations. If we generate 1000 URLs per second, the system will last to 110 years. If it generates 1 million URLs per second, this will last for 40 days. To generate more number of URLs per second, we need to increase the number of characters in the short URL.
 
 3. Base10: Base10 uses just 10 characters. we get just 10^7 ~ 10 million different combinations
 
@@ -85,7 +87,7 @@ So 7-Character short URL Code = Substring(Base62(Random ID), 0, 7)
              
               A                   XXX
 
-              B                   YYY
+              B                   XXX
 
 #### Technique 2 Use MD5 to generate the long URL's hash
 1. MD5 gives a fixed hash for a given hash 
@@ -135,10 +137,24 @@ So 7-Character short URL Code = Substring(Base62(Random ID), 0, 7)
 
 ### System design architecture diagram
 
-![URL Shortner](https://github.com/verisimilitude20201/system-design/blob/main/URL_shortner/bitly1.png)
+![URL Shortner](https://github.com/verisimilitude20201/system-design/blob/main/URL_shortner/bitly1.png?raw=true)
 
 ## REST APIs
 
-1. PUT /url/create/short
+1. PUT /url/short
+      {
+          "long_url": "<LONG_URL>"
+      }
 
-2. GET /url/long
+    201 CREATED --> CREATED. 
+    400 --> Invalid Long URL
+
+    Response:
+    {
+        "long_url": "<LONG_URL>",
+        "short_url": "http://ly.com/XXXXXXX"
+        "created_at": "<EPOCH_TIMESTAMP>",
+        "expired_at": "<EPOCH_TIMESTAMP>"
+    }
+
+2. GET /url/long/{short_url}
