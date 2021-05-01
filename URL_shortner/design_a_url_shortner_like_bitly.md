@@ -135,6 +135,8 @@ So 7-Character short URL Code = Substring(Base62(Random ID), 0, 7)
 
 ### System design architecture diagram
 
+![URL Shortner](https://github.com/verisimilitude20201/system-design/blob/main/URL_shortner/bitly1.png)
+
 ## REST APIs
 
 1. PUT /url/create/short
