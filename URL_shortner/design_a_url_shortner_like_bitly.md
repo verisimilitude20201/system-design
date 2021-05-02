@@ -1,8 +1,8 @@
 # Design a URL shortener like bit.ly
 
-# Credits: 
-- https://www.youtube.com/watch?v=JQDHz72OA3c
-- https://www.youtube.com/watch?v=fMZMm_0ZhK4 (6:17)
+# Sincerest Credits: 
+- Naren - https://www.youtube.com/watch?v=JQDHz72OA3c
+- Tushar Roy - https://www.youtube.com/watch?v=fMZMm_0ZhK4 (6:17)
 
 ## Introduction
 All-in-all, this appears to have an 
