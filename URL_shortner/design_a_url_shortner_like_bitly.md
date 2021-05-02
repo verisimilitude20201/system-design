@@ -2,7 +2,7 @@
 
 # Sincerest Credits: 
 - Naren - https://www.youtube.com/watch?v=JQDHz72OA3c
-- Tushar Roy - https://www.youtube.com/watch?v=fMZMm_0ZhK4 (6:17)
+- Tushar Roy - https://www.youtube.com/watch?v=fMZMm_0ZhK4 (15:17)
 
 ## Introduction
 All-in-all, this appears to have an 
@@ -59,7 +59,7 @@ We have to generate a 7 char random ID for each URL viz. http://www.ly.com/XXXXX
     - MD5 may lead to collisions wherein two different long URLs have the same hash. The theoratical probablity of collision is if you generate 6 billion hashes per second, a collision can happen in 100 years. However, now its artificially possible to generate MD5 collisions (https://www.avira.com/en/blog/md5-the-broken-algorithm#:~:text=MD5%3A%20The%20fastest%20and%20shortest,%3A%201.47*10%2D29.&text=SHA256%3A%20The%20slowest%2C%20usually%2060,generated%20hash%20(32%20bytes). All we need is time, hardware and proper software.
     - Even if we don't get the entire hash collision, the first 7 characters of any generated hash can be same.
 
-2. Base62: Base62 uses 62 characters (A-Z, a-z and 0-9). We get 62^7 ~ 3.5 trillion different combinations. If we generate 1000 URLs per second, the system will last to 110 years. If it generates 1 million URLs per second, this will last for 40 days. To generate more number of URLs per second, we need to increase the number of characters in the short URL.
+2. Base62: Base62 uses 62 characters (A-Z, a-z and 0-9). We get 62^7 ~ 3.5 trillion different combinations. If we generate 1000 URLs per second, the system will last to 110 years. If it generates 1 million URLs per second, this will last for 40 days. To generate more number of URLs per second, we need to increase the number of characters in the short URL. A number between 0 to 3.5 trillion can be represented in 43 bits
 
 3. Base10: Base10 uses just 10 characters. we get just 10^7 ~ 10 million different combinations
 
@@ -75,7 +75,7 @@ So 7-Character short URL Code = Substring(Base62(Random ID), 0, 7)
 
 2. NoSQL can be used for scaling: Eventual consistency, highly available and easy to scale - keep adding nodes.
 
-### How to insert the URLs into DB
+### How to generate the tiny URL
 #### Technique 1 Directly insert
 1. We cannot simply generate a random ID, gets its base62 hash and use it as a short URL. 
 
@@ -89,15 +89,34 @@ So 7-Character short URL Code = Substring(Base62(Random ID), 0, 7)
 
               B                   XXX
 
+4. If the database supports putIfAbsent method, we can even use it to insert the short URL if it already does not exist. For relational databases, this is a trivial operation. 
+
+5. We can do below operations infinitely till we can successfully generate a short URL without collisions
+    - PUT a generated short_url from a long_url
+    - GET the long_url by providing the short_url
+    - Compare it with the original long_url. If it does not equal, redo the process.
+
 #### Technique 2 Use MD5 to generate the long URL's hash
 1. MD5 gives a fixed hash for a given hash 
-2. We can take the first 7 characters of the generated hash of the long URL
+2. We can take the first 7 characters of the generated hash (first 43 bits) of the long URL. How does first 43 bits of an MD5 map to 7 characters? 
+    - Convert first 43 bits into binary
+    - Convert it into a decimal
+    - Repeatedly divide and mod that decimal by 62 to convert into base62
+    - This will give whole numbers between 0 t0 61. 
+    - Map those numbers to characters 
 3. Possibility of collisions either the full hash code or the first 7 characters.
+4. Probablity of collision is inversely proportional to the number of characters.
+
 
 #### Techique 3 Use counters
-1. We can use incremental counters to generate the base62 hash code instead of statistically random number which may repeat. This can work only if the service is a single instance.
+1. Single Host: We can use incremental counters to generate the base62 hash code instead of statistically random number which may repeat. This can work only if the service is a single instance.
 
-2. We can have a counter service to supply the counter values. But it too has problems
+2. Counter Service: We can have a counter service to supply the counter values. We can use it to generate unique code as
+
+7 character unique code = `Base62(6-bit random number + 32 bit epoch timestamp + 4 Bit substring of Mac address )`
+
+But it too has problems
+
     - It becomes a single point of failure.
     - Even if we add multiple instances of the service, one or two per region we would need to give each one a range of counter values for example: 1 to 5 million, 5 million and 1 to 10 million and so on.
     - Counter values can get exhausted because of 32-bit integer limit on platforms.
