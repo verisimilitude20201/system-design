@@ -78,9 +78,17 @@ We choose NoSQL here assuming that we will require a very high write throughput 
 
 ### Cassandra Schema design
 
+#### URL Table
+
     short_url_code     TEXT     Primary Key
     long_url           TEXT
-    creation_timestamp timestamp
+    creation_timestamp timestamp Clustering key
+
+#### Timestamp_URL mapping
+
+    creation_timestamp     timestamp     Primary Key
+    short_url_cide         TEXT
+
 
 ## How to generate the tiny URL
 ### Technique 1 Directly insert
@@ -161,6 +169,10 @@ But it too has problems
 4. So each instance can generate unique IDs only within the alloted range. If the ranges get used, the next unused range is alloted to the server.
 5. In this way there won't be any collisions and you also don't need to check for the presence of unique ID for a different URL to be already present in the DB.
 6. You could add  new worker threads without worrying about collisions
+
+### Expiring a URL after 3 hours
+1. A periodic scheduled job will run in the App service every 3 hours
+2. This job will fetch all URIs from Timestamp_URL mapping table who got created more than 3 hours ago and first delete them from Cassandra's URL & Timestamp_URL table and then from Redis
 
 ### System design architecture diagram
 
