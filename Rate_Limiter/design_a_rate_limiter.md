@@ -1,5 +1,8 @@
 # Design a distributed rate-limiter
 
+# Sincerest Credits: 
+- System Design - https://www.youtube.com/watch?v=FU4WlwfS3G0 (5:33)
+
 ## Introduction
 All public APIs have rate limiters in them. May be Facebook, Twitter, Google, Amazon
 
