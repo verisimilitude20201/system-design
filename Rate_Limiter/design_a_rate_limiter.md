@@ -2,6 +2,7 @@
 
 # Sincerest Credits: 
 - System Design - https://www.youtube.com/watch?v=FU4WlwfS3G0 (11:52)
+- Detailed explanation of Rate Limiters - https://dzone.com/articles/detailed-explanation-of-guava-ratelimiters-throttl
 
 ## Introduction
 All public APIs have rate limiters in them. May be Facebook, Twitter, Google, Amazon
