@@ -1,7 +1,7 @@
 # Design a distributed rate-limiter
 
 # Sincerest Credits: 
-- System Design - https://www.youtube.com/watch?v=FU4WlwfS3G0 (11:52)
+- System Design - https://www.youtube.com/watch?v=FU4WlwfS3G0 (16:22)
 - Detailed explanation of Rate Limiters - https://dzone.com/articles/detailed-explanation-of-guava-ratelimiters-throttl
 
 ## Introduction
@@ -61,3 +61,75 @@ We will use a Token Bucket algorithm here.
     - Refill rate: Rate at which tokens are added to a bucket.
 3. Every time a request comes, we take the token from the bucket. If there are no more tokens available, the next request is rejected. 
 4. Bucket is refilled at a constant rate.
+
+
+```
+# TokenBucket.java
+package parser;
+
+import Math;
+
+public class TokenBucket {
+  private final long maxBucketSize;
+  private final long refillRate;
+
+  private double currentBucketSize;
+  private long lastRefillTimestamp;
+
+  private TokenBucket(long maxBucketSize, long refillRate) {
+    this.maxBucketSize = maxBucketSize;
+    this.refillRate = refillRate;
+    lastRefillTimestamp = System.nanoTime();
+  }
+  private void refill() {
+    long now = System.nanoTime();
+    double tokensToAdd = (now - lastRefillTimestamp) * refillRate / 1e9;
+    this.maxBucketSize = min(this.maxBucketSize, this.maxBucketSize + tokensToAdd);
+    this.lastRefillTimestamp = System.nanoTime();
+  }
+
+  public synchronized boolean allowRequest(int tokens) {
+    if (currentBucketSize < this.maxBucketSize) {
+      refill();
+    }
+    if (currentBucketSize > tokens) {
+      currentBucketSize -= tokens;
+      return true;
+    }
+
+    return false;
+  }
+
+
+}
+
+```
+### Example execution
+
+      0)    Time t0 = 100,  bucket was created.
+            Max capacity = 10
+            Refill capacity = 10 tokens/second
+
+
+      1) Time t1 = t0 + 300 ms later allow request method was called as allowRequest(4)
+         Since the bucket is full, we don't add any more tokens.
+         Remaining tokens in bucket = 10 - 4 = 6 tokens
+
+
+      2)  Time t2 = t1 + 200 ms later, allowRequest(5)
+         i) Refill method adds = (500 ms - 100) * 10 / 1000 = 4000 / 1000 = 4 tokens
+         ii) Remaining tokens in bucket = 6 + 4 - 5 = 5
+         iii) lastRefillTimestamp = 500 ms
+
+## Object-Oriented Design
+### Interfaces
+1. JobScheduler: Interface that schedules any job periodically and retrives rules from RuleService
+2. RuleCache: Interface that stores the rules in memory.
+3. Client identifier interface: Builds a unique ID that identifies every client.
+4. RateLimiter: Interface is responsible for decision making.
+
+### Classes
+1. RuleJobScheduler: Implements JobScheduler interface and retrives rules from rule service. We can use ScheduledExecutor service for this. Calls RuleRetriever
+2. TokenBucketCache: Implements RuleCache. Stores TokenBucket objects. Can uses a ConcurrentHashMap, Google Guava Cache.
+3. ClientRequestBuilder: Maps a client to an identifier such as login. Can even be an IP address
+4. RuleRetriever: Retrives rule from database, creates token buckets and loads them into cache.  
