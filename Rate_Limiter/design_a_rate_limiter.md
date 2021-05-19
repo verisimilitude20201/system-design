@@ -1,7 +1,7 @@
 # Design a distributed rate-limiter
 
 # Sincerest Credits: 
-- System Design - https://www.youtube.com/watch?v=FU4WlwfS3G0 (16:22)
+- System Design - https://www.youtube.com/watch?v=FU4WlwfS3G0 (22:10)
 - Detailed explanation of Rate Limiters - https://dzone.com/articles/detailed-explanation-of-guava-ratelimiters-throttl
 
 ## Introduction
@@ -84,11 +84,12 @@ public class TokenBucket {
   private void refill() {
     long now = System.nanoTime();
     double tokensToAdd = (now - lastRefillTimestamp) * refillRate / 1e9;
-    this.maxBucketSize = min(this.maxBucketSize, this.maxBucketSize + tokensToAdd);
+    this.currentBucketSize = min(this.maxBucketSize, this.maxBucketSize + tokensToAdd);
     this.lastRefillTimestamp = System.nanoTime();
   }
 
   public synchronized boolean allowRequest(int tokens) {
+    currentBucketSize = this.maxBucketSize;
     if (currentBucketSize < this.maxBucketSize) {
       refill();
     }
@@ -131,5 +132,43 @@ public class TokenBucket {
 ### Classes
 1. RuleJobScheduler: Implements JobScheduler interface and retrives rules from rule service. We can use ScheduledExecutor service for this. Calls RuleRetriever
 2. TokenBucketCache: Implements RuleCache. Stores TokenBucket objects. Can uses a ConcurrentHashMap, Google Guava Cache.
-3. ClientRequestBuilder: Maps a client to an identifier such as login. Can even be an IP address
-4. RuleRetriever: Retrives rule from database, creates token buckets and loads them into cache.  
+3. ClientRequestBuilder: Maps a client to an identifier such as login username. Can even be an IP address
+4. RuleRetriever: Retrives rule from database, creates token buckets and loads them into cache.
+
+### How these interact with each other
+1. RetrieveJobScheduler runs RetrieveRulesTask which makes a remote call to the RulesService. Creates token bucket and puts them in the cache.
+2. When client request comes, RateLimiter makes a call to the ClientIdentifier builder to build a client identity, passes this key to the cache and retrives the bucket.
+3. Last step is calling the allowRequest function on the Token Bucket.
+
+
+### Stepping into the Distributed World
+0. There are 3 hosts - Host A, Host B and Host C. And we need to allow 4 requests per second per client.
+1. Each bucket should have 4 tokens initially. The reason being all buckets for the same bucket may in theory land on the same host. Load balancers try to distribute requests evenly, but they may not have an idea about keys and requests for same key may not be evenly distributed.
+2. We add a load balancer.
+    - First request goes to Host A. One token is used. 3 remain
+    - Second requests go to Host C. One token is used. 3 remain.
+    - Two other requests within the same second go to Host B. 2 tokens remain
+    - All 4 requests hit the cluster. We must now throttle the requests within this second. 
+    - Hosts should be allowed to communicate with each other to figure out how many tokens used.
+        - Host A realizes that the other two hosts spent 3 (Host B: 2 tokens and Host C: 1 token). It removes 3 tokens available to it. It has 0 tokens 
+        - Host B removes it's available tokens because it realizes that Host A and C consumed 1-1 token each
+        - Host C removes it's all tokens. It realizes that A consumes 1 token and B consumes 2 tokens. It too removes all it's 3 tokens
+        - All hosts now have 0 tokens available. 4 requests have been processed and no more requests allowed.
+
+#### Some disadvantages
+1. If more than 4 requests hit the cluster in a second, they may go through.
+2. Because the communication between the two hosts may take time to agree on the number of tokens to be removed, additional requests > 4 may slip into the system.
+    - At times our system processes more requests than it expects and we need to scale our systems accordingly.
+    - Token bucket algorithm handles this use-case well if we extend the algorithm to allow negative number of tokens.
+
+
+## How does each host share the number of tokens with each other? 
+
+There are several different ways
+
+### Network Mesh - Every host contacts every other host. 
+1. Every host queries every other host for the information. This is similar to a Network Mesh topology
+2. Host Discovery: 
+    - We may use a 3rd party service that listens in to heartbeats coming from all registered hosts. Each host can contact this registry to find out with whom all it can talk with.
+    - User provides a configuration file containing of IPs/hostnames of the hosts that it needs to contact with. This file will be deployed on all hosts.
+3. Relatively simple to implement but does not scale. Number of messages grows quadratically w.r.t number of hosts in the cluster. We can support smaller clusters but not larger ones
