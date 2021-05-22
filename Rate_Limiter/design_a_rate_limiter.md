@@ -1,7 +1,7 @@
 # Design a distributed rate-limiter
 
 # Sincerest Credits: 
-- System Design - https://www.youtube.com/watch?v=FU4WlwfS3G0 (22:10)
+- System Design - https://www.youtube.com/watch?v=FU4WlwfS3G0
 - Detailed explanation of Rate Limiters - https://dzone.com/articles/detailed-explanation-of-guava-ratelimiters-throttl
 
 ## Introduction
@@ -172,3 +172,51 @@ There are several different ways
     - We may use a 3rd party service that listens in to heartbeats coming from all registered hosts. Each host can contact this registry to find out with whom all it can talk with.
     - User provides a configuration file containing of IPs/hostnames of the hosts that it needs to contact with. This file will be deployed on all hosts.
 3. Relatively simple to implement but does not scale. Number of messages grows quadratically w.r.t number of hosts in the cluster. We can support smaller clusters but not larger ones
+
+### Gossip Protocol  (Used as Yahooo)
+1. Protocol works in a way like epidemic spreads.
+2. Implement this with a form of random peer selection.
+3. With a frequency, each machine selects other machine at random and shares data
+
+### Distributed Cache
+1. Redis can be used here.
+2. Our service cluster can scale out independently since the cache cluster is a separate cluster.
+3. Can be shared amongst many different teams in the organization
+
+### Coordination Service (Paxos and Raft)
+1. Coordination service such as Zookeeper helps to choose the leader.
+2. This helps to reduce number of messages broadcast in the network
+3. Leaders asks each host the data, computes and calculates the final result and sends it.
+4. Coordination service is a sophisticated service and it requires that there be only one leader
+5. In case there are multiple leaders elected, each leader will compute the same result eventually. But this will have a messaging overhead.
+
+### Host commmunication of protocols
+We have two options TCP and UDP.
+1. If we want rate limiting solution to be more accurate but having little bit of performance overhead, we can use TCP.
+2. Less accurate solution that is more fast - UDP
+
+## How to integrate all this?
+Rate limiter can be run as a part of the service process or as a separate process (or even a micro-service) entirely
+1. Part of service process: A common library integrated with the serivce code. Faster, no inter-process communication
+2. We have two libraries - the daemon itself and the client that is responsible for inter-process communication between the service process and daemon. Programming language agnostic. Rate-limiter can be used written in an entirely different language. Rate limiter uses it's own memory space. Service memory does'nt need to allocate buckets for the rate limiter process. Service developers often come up with a lot of questions whenever they need to integrate with any other library. In this case, the service will not be impacted by any bugs in the Rate limiter library
+
+## Some other questions
+1. My service is insanely popular, does that mean I should keep millions of buckets in memory
+  - Buckets will only be stored in memory as long as a client continues to send requests in an interval less than a second. 
+  - If there are no requests coming for a client, we may remove this bucket. 
+  - Bucket will be re-created when client makes a new request.
+
+2. Failure modes
+  - Rate-limiter daemon can fail. Less requests will be throttled in total.
+  - Network partition can happen when several hosts in may not be able to broadcast requests to the rest of the group. Less requests throttled in total. If hosts talk to each other only 4 requests allowed across them. In this case, each host will accept 4 requests.
+  - Service teams needs to have a tool to update, add and delete rules.
+
+3. Synchronization needed at various places
+  - Token Bucket class needs to have thread-safety. Atomic references can be used
+  - Token bucket cache: Too many buckets and we want to deleted unused buckets and delete them when needed, we end up with synchronization. Concurrent Hash Map may be used.
+
+4. What can clients do with throttled requests?
+  - They can eithe retry them later or queue them.
+  - To smartly retry, we use Exponential backoff and jitter. Exponential backoff retries requests several times but we wait longer with every retry. Jitter adds randomness to retry intervals. If we don't add jitter, exponential backoff retries requests at multiples of the same intervals of time.
+
+5. The solution depends on number of hosts in the cluster, the request rate and the number of rules in the system. This can scale upto tens of thousands of hosts and Gossip protocol with UDP can give a consistent performance. For 10,000 hosts and above, Gossip will be expensive and so we can rely on a distributed caching system for our solution.
