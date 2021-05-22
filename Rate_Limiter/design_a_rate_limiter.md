@@ -25,8 +25,23 @@ All public APIs have rate limiters in them. May be Facebook, Twitter, Google, Am
      - Application servers throttle requests independently. Load balancers cannot distribute requests in an evenly manner. Different operatons cost differently. Each application server may become slow due to software failures or overheating
      - So application servers need to communicate with each other and maintain information about how many requests each one has processed so far.  
 
+4. Can I assume that we have some publicly exposed REST APIs from the Web service for which we have to throttle their calls?
+     - Of course, since it's a back-end web service you can definitely assume this. 
+     - Admins can add rules through a management API
+     - Each rule can have the API path for which it is supposed to be applied. 
+     - We can let the load-balancer rate limit unauthenticated requests. 
+
 ## The Solution at a very brief
-Use throttling. Throttling helps to limit the requests a client can send in a given amount of time.
+Use throttling. Throttling helps to limit the requests a client can send in a given amount of time. The purpose of throttling is to protect the system by restricting concurrent access or requests or restricting requests of a specified time window. 
+
+### Different types of Throttling
+1. Limit total concurrency: For example: Limit the size of the data connection pool and thread pool.
+2. Limit instantenous concurrency: For example: Limit the total number of concurrent connections to the Web server.
+3. Limit the average access rate in a time window. For example: allow only 10 requests per second, 100 requests per hour. For example: Rate limiter of Java and limit_req of Nginx.
+4. Limit API invocation rate. 
+5. Limit MQ consumption rate.
+
+Throttling can also be implemented for number of network connections, network traffic, CPU or memory load. For this question, we will limit the average access rate say for an API in a time window.
 
 ## Requirements
 
@@ -84,12 +99,11 @@ public class TokenBucket {
   private void refill() {
     long now = System.nanoTime();
     double tokensToAdd = (now - lastRefillTimestamp) * refillRate / 1e9;
-    this.currentBucketSize = min(this.maxBucketSize, this.maxBucketSize + tokensToAdd);
+    this.currentBucketSize = min(this.maxBucketSize, this.currentBucketSize + tokensToAdd);
     this.lastRefillTimestamp = System.nanoTime();
   }
 
   public synchronized boolean allowRequest(int tokens) {
-    currentBucketSize = this.maxBucketSize;
     if (currentBucketSize < this.maxBucketSize) {
       refill();
     }
