@@ -3,6 +3,7 @@
 # Sincerest Credits: 
 - System Design - https://www.youtube.com/watch?v=FU4WlwfS3G0
 - Detailed explanation of Rate Limiters - https://dzone.com/articles/detailed-explanation-of-guava-ratelimiters-throttl
+- Rate Limiting System Design: https://www.youtube.com/watch?v=mhUQe4BKZXs(10:49)
 
 ## Introduction
 All public APIs have rate limiters in them. May be Facebook, Twitter, Google, Amazon
@@ -10,6 +11,11 @@ All public APIs have rate limiters in them. May be Facebook, Twitter, Google, Am
 ## The Problem Definition
 1. A popular web service experiences a traffic spike. 
 2. Malicious client that tries to DDoS our service. One client uses exhorbitant amount of resources of our service due to which other clients start facing a high latency or higher rate of failed requests
+3. Imagine you have a service that gives weather forecasts, machine learning algorithms or stock prices and you need to give access to developers on test them out on a trial basis before they purchase a full subscription
+4. Few more scenarious
+  - User experience: Avoid few users from bombarding your service with requests affecting other user's experience
+  - Security: Avoid DDoS
+  - Reduce operational cost
 
 ## Clarification Questions
 1. Can we auto-scale to handle the high load?
@@ -34,14 +40,12 @@ All public APIs have rate limiters in them. May be Facebook, Twitter, Google, Am
 ## The Solution at a very brief
 Use throttling. Throttling helps to limit the requests a client can send in a given amount of time. The purpose of throttling is to protect the system by restricting concurrent access or requests or restricting requests of a specified time window. 
 
-### Different types of Throttling
-1. Limit total concurrency: For example: Limit the size of the data connection pool and thread pool.
-2. Limit instantenous concurrency: For example: Limit the total number of concurrent connections to the Web server.
-3. Limit the average access rate in a time window. For example: allow only 10 requests per second, 100 requests per hour. For example: Rate limiter of Java and limit_req of Nginx.
-4. Limit API invocation rate. 
-5. Limit MQ consumption rate.
+### Different types of Rate Limiting
+1. User based rate limiting: Allow a user to send only X-amount of requests in a given time
+2. Concurrent rate limit: For a user, how many parallel sessions/connections are allowed. Limits DDoS attacks
+3. Location based rate limiting: Useful whenever you're running a campaign for a location and you want to rate limit for all except this given location.
+4. Server-based rate limiting: Rate limit different services that a server can offer
 
-Throttling can also be implemented for number of network connections, network traffic, CPU or memory load. For this question, we will limit the average access rate say for an API in a time window.
 
 ## Requirements
 
@@ -86,33 +90,35 @@ import Math;
 
 public class TokenBucket {
   private final long maxBucketSize;
-  private final long refillRate;
-
   private double currentBucketSize;
-  private long lastRefillTimestamp;
+  private long lastRequestServeTimestamp;
+  private Enum LimitTimeUnit;
 
-  private TokenBucket(long maxBucketSize, long refillRate) {
+  private TokenBucket(long maxBucketSize, LimitTimeUnit limitTimeUnit) {
     this.maxBucketSize = maxBucketSize;
-    this.refillRate = refillRate;
-    lastRefillTimestamp = System.nanoTime();
+    this.limitTimeUnit = limitTimeUnit;
   }
-  private void refill() {
-    long now = System.nanoTime();
-    double tokensToAdd = (now - lastRefillTimestamp) * refillRate / 1e9;
-    this.currentBucketSize = min(this.maxBucketSize, this.currentBucketSize + tokensToAdd);
-    this.lastRefillTimestamp = System.nanoTime();
-  }
+  
 
-  public synchronized boolean allowRequest(int tokens) {
-    if (currentBucketSize < this.maxBucketSize) {
-      refill();
+  public synchronized boolean allowRequest() {
+    if (!isLastRequestServedWithinSameMinute()) {
+      this.currentBucketSize = maxBucketSize;
     }
     if (currentBucketSize > tokens) {
-      currentBucketSize -= tokens;
+      currentBucketSize -= 1;
       return true;
     }
 
     return false;
+  }
+
+  private void isLastRequestServedWithinSameTimeUnit() {
+    long now = System.nanoTime();
+    double secondsSinceLastRequest = (now - this.lastRequestServeTimestamp) / 1e9
+    double minsSinceLastRequest = round(secondsSinceLastRequest / 60)
+    if minsSinceLastRequest > 0:
+        return True
+    return False
   }
 
 
