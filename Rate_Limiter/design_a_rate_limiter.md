@@ -3,7 +3,8 @@
 # Sincerest Credits: 
 - System Design - https://www.youtube.com/watch?v=FU4WlwfS3G0
 - Detailed explanation of Rate Limiters - https://dzone.com/articles/detailed-explanation-of-guava-ratelimiters-throttl
-- Rate Limiting System Design: https://www.youtube.com/watch?v=mhUQe4BKZXs(10:49)
+- Rate Limiting System Design: https://www.youtube.com/watch?v=mhUQe4BKZXs(16:34)
+- https://www.figma.com/blog/an-alternative-approach-to-rate-limiting/
 
 ## Introduction
 All public APIs have rate limiters in them. May be Facebook, Twitter, Google, Amazon
@@ -71,7 +72,9 @@ Only one requirement. It will support just one kind of operation. This operation
    - It also has a PUT and POST API to modify and add new rules to the rules database.
 4. Request processor handles all client requests those are not rate-limited
 
-## Actual Algorithm to rate-limit
+## Actual Algorithms to rate-limit
+
+### Token Bucket algorithm With Periodic Refill
 We will use a Token Bucket algorithm here. 
 1. It's based on the analogy of a bucket filled with tokens
 2. Bucket has 3 characteristics: 
@@ -81,8 +84,9 @@ We will use a Token Bucket algorithm here.
 3. Every time a request comes, we take the token from the bucket. If there are no more tokens available, the next request is rejected. 
 4. Bucket is refilled at a constant rate.
 
-
+#### Sample code
 ```
+# TokenBucket.java
 # TokenBucket.java
 package parser;
 
@@ -90,42 +94,39 @@ import Math;
 
 public class TokenBucket {
   private final long maxBucketSize;
+  private final long refillRate;
+
   private double currentBucketSize;
-  private long lastRequestServeTimestamp;
-  private Enum LimitTimeUnit;
+  private long lastRefillTimestamp;
 
-  private TokenBucket(long maxBucketSize, LimitTimeUnit limitTimeUnit) {
+  private TokenBucket(long maxBucketSize, long refillRate) {
     this.maxBucketSize = maxBucketSize;
-    this.limitTimeUnit = limitTimeUnit;
+    this.refillRate = refillRate;
+    lastRefillTimestamp = System.nanoTime();
   }
-  
+  private void refill() {
+    long now = System.nanoTime();
+    double tokensToAdd = (now - lastRefillTimestamp) * refillRate / 1e9;
+    this.currentBucketSize = min(this.maxBucketSize, this.currentBucketSize + tokensToAdd);
+    this.lastRefillTimestamp = System.nanoTime();
+  }
 
-  public synchronized boolean allowRequest() {
-    if (!isLastRequestServedWithinSameMinute()) {
-      this.currentBucketSize = maxBucketSize;
+  public synchronized boolean allowRequest(int tokens) {
+    if (currentBucketSize < this.maxBucketSize) {
+      refill();
     }
     if (currentBucketSize > tokens) {
-      currentBucketSize -= 1;
+      currentBucketSize -= tokens;
       return true;
     }
 
     return false;
   }
 
-  private void isLastRequestServedWithinSameTimeUnit() {
-    long now = System.nanoTime();
-    double secondsSinceLastRequest = (now - this.lastRequestServeTimestamp) / 1e9
-    double minsSinceLastRequest = round(secondsSinceLastRequest / 60)
-    if minsSinceLastRequest > 0:
-        return True
-    return False
-  }
-
-
 }
 
 ```
-### Example execution
+#### Example execution
 
       0)    Time t0 = 100,  bucket was created.
             Max capacity = 10
@@ -141,6 +142,74 @@ public class TokenBucket {
          i) Refill method adds = (500 ms - 100) * 10 / 1000 = 4000 / 1000 = 4 tokens
          ii) Remaining tokens in bucket = 6 + 4 - 5 = 5
          iii) lastRefillTimestamp = 500 ms
+
+### Token bucket algorithm without refill
+
+1. For each user, track the last time which request was made and the available tokens.
+2. Every time request comes in, we fetch the token for a user (usually from a Redis key)
+3. Update token, decrement the token count and update the last time when request was made.
+
+#### Example execution
+Only 5 tokens per minute are allowed
+
+1. Request comes first at 11:01:00
+    U1:     11:01:00       5
+
+2. Request comes at 11:01:30
+    U1:   11:01:30          4
+
+3. Request comes at 11:01:30
+    U1:   11:01:45          3
+
+4. Request comes at 11:01:30
+    U1:   11:01:46          2
+
+5. Request comes at 11:01:30
+    U1:   11:01:55          1
+
+6. Request comes at 11:01:30 (BLOCK - Return 429)
+    U1:   11:01:59          0
+
+7. Request comes at 11:01:30 
+    U1:   11:02:03          5
+
+#### Disadvantages
+1. May lead to a race condition in Distributed systems where in two instances of an application may try modify the record.
+
+
+### Leaky bucket algorithm
+1. This is equivalent to having a bucket with a fixed size N-requests which it can cater, consider N is 3.
+2. So it can serve only 3 requests. If the 4th, 5th, 6th, 7th requests now come, they'll spill over.
+3. Till the time 8th request comes, the request processor at the other end finished processing 1 so 8 can now get inserted into the bucket.
+4. This is equivalent to a distributed queue of size N and it can smoothen out the burst traffic.
+
+### Fixed window counter
+1. Increment a counter on the basis of the incoming requests. This is same as the token bucket algorithm without refill only thing is we increment counter from 0 (initially)
+2. One disadvantage is we can have more number of requests at the nearing end of the limit
+
+#### Example execution
+Only 5 tokens per minute are allowed
+
+1. Request comes first at 11:01:00
+    U1:     11:01:00       0
+
+2. Request comes at 11:01:30
+    U1:   11:01:30          1
+
+3. Request comes at 11:01:30
+    U1:   11:01:45          2
+
+4. Request comes at 11:01:30
+    U1:   11:01:46          3
+
+5. Request comes at 11:01:30
+    U1:   11:01:55          4
+
+6. Request comes at 11:01:30 (BLOCK - Return 429)
+    U1:   11:01:59          5
+
+7. Request comes at 11:01:30 
+    U1:   11:02:03          0
 
 ## Object-Oriented Design
 ### Interfaces
