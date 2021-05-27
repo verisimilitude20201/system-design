@@ -3,7 +3,7 @@
 # Sincerest Credits: 
 - System Design - https://www.youtube.com/watch?v=FU4WlwfS3G0
 - Detailed explanation of Rate Limiters - https://dzone.com/articles/detailed-explanation-of-guava-ratelimiters-throttl
-- Rate Limiting System Design: https://www.youtube.com/watch?v=mhUQe4BKZXs(16:34)
+- Rate Limiting System Design: https://www.youtube.com/watch?v=mhUQe4BKZXs(25:47)
 - https://www.figma.com/blog/an-alternative-approach-to-rate-limiting/
 
 ## Introduction
@@ -186,6 +186,34 @@ Only 5 tokens per minute are allowed
 ### Fixed window counter
 1. Increment a counter on the basis of the incoming requests. This is same as the token bucket algorithm without refill only thing is we increment counter from 0 (initially)
 2. One disadvantage is we can have more number of requests at the nearing end of the limit
+
+### Sliding logs
+1. Keep a key in redis as the username
+2. For every request, add an entry to a list keyed at that array. Each request will also have a timestamp. 
+3. Filter out all older entries less than the last minute.
+4. If the count of the remaining entries is less than the allowed number of tokens per minute, then the system can take in additional requests. IF not, we reject any additional
+5. Here the number of entries = Number of requests. Also if there are a million users in the system, we would need to store a million keys for each user containing a similar list of requests.
+
+### Sliding Window counter.
+1. This is a memory optimized solution over sliding logs.
+2. Maintain a similar list to sliding logs.
+3. In that list, maintain a count of how many requests arrive at that second along with the timestamp. Let's take an example.
+
+#### Sliding Window counter
+Imagine that the request rate is 10 requests per minute for U1
+
+1. 1st request 11:01:01
+
+    U1 = [(11:01:01, 01)]
+
+2. 2nd request 11:01:01
+U1 = [(11:01:01, 02)]
+
+3. 4 requests come in at 11:01:15
+ U1 = [(11:01:01, 02), (11:01:15, 4)]
+
+ After receiving each request, we need to update this list and compute the last minute count of requests from this array. Delete any additional requests from this array before the last one minute. For example: In this case delete all requests <= 10:59:59 
+
 
 #### Example execution
 Only 5 tokens per minute are allowed
