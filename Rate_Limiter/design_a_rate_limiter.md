@@ -257,6 +257,13 @@ Only 5 tokens per minute are allowed
 2. When client request comes, RateLimiter makes a call to the ClientIdentifier builder to build a client identity, passes this key to the cache and retrives the bucket.
 3. Last step is calling the allowRequest function on the Token Bucket.
 
+### Single instance set up with the above algorithms works extremely fine
+1. Each of above algorithms works extremely fine for a single-instance or rather a single data centre set up of the rate limiting systems.
+2. Common problems in a distributed set up
+  - Inconsistency: This fails if the load balancer does not redirect request to the same instance for the rate-limiter to identify that this user already requested. Request from this user will never go to a different region/ data center. This is called Sticky session load balancing. This gives rise to skewed distribution of requests
+  - Race Conditions: Rate limiters will have a lock and release it only after updating the current counter in Redis for that user. This will add a latency to the round-trip time of the same request.
+
+3. There may be a latency between syncing the data between nodes. We can have a local cache on each Rate-Limiter node updating the rate limit count, and each rate-limiter service syncs it back to the Redis store. At times, we can relax the rate-limit because it's okay to deliver 100-103-104 requests per minute when the rate is set to 100 requests per minute
 
 ### Stepping into the Distributed World
 0. There are 3 hosts - Host A, Host B and Host C. And we need to allow 4 requests per second per client.
@@ -271,6 +278,7 @@ Only 5 tokens per minute are allowed
         - Host B removes it's available tokens because it realizes that Host A and C consumed 1-1 token each
         - Host C removes it's all tokens. It realizes that A consumes 1 token and B consumes 2 tokens. It too removes all it's 3 tokens
         - All hosts now have 0 tokens available. 4 requests have been processed and no more requests allowed.
+
 
 #### Some disadvantages
 1. If more than 4 requests hit the cluster in a second, they may go through.
