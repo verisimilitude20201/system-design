@@ -3,7 +3,7 @@
 # Sincerest Credits: 
 - System Design - https://www.youtube.com/watch?v=FU4WlwfS3G0
 - Detailed explanation of Rate Limiters - https://dzone.com/articles/detailed-explanation-of-guava-ratelimiters-throttl
-- Rate Limiting System Design: https://www.youtube.com/watch?v=mhUQe4BKZXs(25:47)
+- Rate Limiting System Design: https://www.youtube.com/watch?v=mhUQe4BKZXs
 - https://www.figma.com/blog/an-alternative-approach-to-rate-limiting/
 
 ## Introduction
