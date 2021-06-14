@@ -4,7 +4,7 @@
   - Gaurav Sen https://www.youtube.com/watch?v=vvhC64hQZMk(14:49)
   - Scaling to Millions of simulaneous connections https://vimeo.com/44312354
   - Whatsapp - The Architecture that Facebook bought http://highscalability.com/blog/2014/2/26/the-whatsapp-architecture-facebook-bought-for-19-billion.html
-  - Code Karle https://www.youtube.com/watch?v=RjQjbJ2UJDg(2:49)
+  - Code Karle https://www.youtube.com/watch?v=RjQjbJ2UJDg(8:54)
 
 ## Functional Requirements
 1. Group Messaging
@@ -66,3 +66,16 @@
 ## Few tips and tricks
 1. Facebook messager deprioritizes unimportant messages when there are special events like new year, christmas. 
 2. Actually sending the message and the intended recipient is more important than showing Last seen or whether that user saw that message
+
+## System Architecture
+
+WebSockets are bidirectional connections built on top of TCP.
+
+## Main components
+1. Client devices: A set of one or more client devices that are used to message. 
+2. Web Socket Handler servers: Keeps open connections with all active users which are connected. Each machine has 65534 active connections. Rougly one machine can handle 60,000 machines. These would be distributed across the globe because users in certain region would talk to web socket handlers closer to that region.
+3. Web socket managers: Web socket manager servers interface with Redis that stores the details of which user is mapped to which socket handler. Any connection updates say a client disconnects from a Web socket server and reconnects to a different server 
+4. Redis: Stores a mapping of Web_Socket_1 along with a set of which user_ids it is connected to and a mapping a which user_id is connected to which web socket handler.
+5. Message Service: Repository of messages in the system. Fetch messages by message_id, fetch all messages by user_id and so on. It interfaces with Cassandra.
+6. Cassandra: We use Cassandra over here because it's has good performance for writes. We can either store messages permanently to Cassandra like Facebook or delete them once they are successfully delivered like Whatsapp.
+
