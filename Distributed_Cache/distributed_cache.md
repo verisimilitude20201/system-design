@@ -91,3 +91,23 @@ This is an O(n) strategy.
       6  -> 102
 
   The nodes at the front of the list was least recently accessed. Append all accessed nodes at the end of the linked_list. If it's present leftwards towards the start of list, delete it and append it to the back.
+
+## Actual design
+1. We actually need the service to accept GET/PUT calls to get a key's value and to set a key-value.
+2. So there are 2 ways out. If we go by synchronous way, it's actually a blocking call and considering we receive million/billion requests per second, it will won't be worth it.
+3. We can also have an asynchronous way as the below schematic explains
+
+      Get/PUT     => Event Queue    ===>   Event Loop       ====> Thread-pool       ====> Memory
+                                                     <---- Callback Response
+
+
+## How to make fault tolerant
+1. Write a service that will receive a frozen snapshot of the Hash table and save in memory in a file called dump.db
+2. Log reconstruction: We can even simply log all writes in a log file and all operations in an asynchronous fashion in a log file.
+      DEL key1
+      PUT key2 value2
+      PUT key3 value3        
+
+## How to make system available.
+1. Have several servers that will replicate data to all servers. Requests can be read distributed to all servers.
+2. Replication can be master-slave or peer-to-peer.
