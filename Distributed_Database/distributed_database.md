@@ -1,4 +1,4 @@
-Video: Tushar Roy - https://www.youtube.com/watch?v=rnZmdmlR-2M (20:22)
+Video: Tushar Roy - https://www.youtube.com/watch?v=rnZmdmlR-2M (29:26)
 # Designing a distributed database
 
 ## Characteristics
@@ -75,3 +75,17 @@ If we get two PUTs - PUT(D, 150) and PUT(D, 100) at the same time, the PUT which
 3. Similarly, PUT(Stocks, Y, 400) will go to RG2. 
 4. GET(Stocks, Y) will again go to RG2
 5. List(Stocks) will go to Request manager which knows that it should fetch data from 2 RGs. It starts scanning the first replication group and streams data to client, then it streams data from the next replication group. If the number of records are on the higher side, it can even page them in batches of 500s each.
+
+## Controller Plane 
+
+### Leader election
+1. Based on the results of the leader election, Controller will elect a leader amongst the members of a replication group and update metadata manager.
+2. Heartbeats are sent by the leader to Controller. If this heartbeats stops after a certain time, Controller initiates a new election. 
+3. The present followers get caught up on the current state and participate in this election. Split brain problem can happen. 
+
+### Node unavailability 
+4. Replication group can be unavailable for certain split seconds. In this database, we prefer consistency over availaibility
+5. When follower starts lagging behind the leader, the controller realizes this. It takes another node from the pool of available nodes, assigns it to the leader, update meta-data manager and flags the former follower
+
+### Splitting hot tables.
+6. Splitting hot tables: Number of IOPs is very high. Controller finds out what table is responsible for the replication group to be huge in size. It also tries to figure out at what point should it split the table to balance. Controller first finds a replication group to hold say 30% of the data of the table and updates the data manager about the range of data that is assigned to the new replication group and what range is handled by the older replication group.
