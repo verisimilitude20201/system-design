@@ -1,5 +1,5 @@
 Video: Tushar Roy - https://www.youtube.com/watch?v=rnZmdmlR-2M (29:26)
-# Designing a distributed database
+# Designing a distributed key-value database
 
 ## Characteristics
 
@@ -83,9 +83,35 @@ If we get two PUTs - PUT(D, 150) and PUT(D, 100) at the same time, the PUT which
 2. Heartbeats are sent by the leader to Controller. If this heartbeats stops after a certain time, Controller initiates a new election. 
 3. The present followers get caught up on the current state and participate in this election. Split brain problem can happen. 
 
+
+
+## Error Scenarios
+
 ### Node unavailability 
 4. Replication group can be unavailable for certain split seconds. In this database, we prefer consistency over availaibility
 5. When follower starts lagging behind the leader, the controller realizes this. It takes another node from the pool of available nodes, assigns it to the leader, update meta-data manager and flags the former follower
 
 ### Splitting hot tables.
 6. Splitting hot tables: Number of IOPs is very high. Controller finds out what table is responsible for the replication group to be huge in size. It also tries to figure out at what point should it split the table to balance. Controller first finds a replication group to hold say 30% of the data of the table and updates the data manager about the range of data that is assigned to the new replication group and what range is handled by the older replication group.
+
+### Split-Brain - Two leaders
+1. When a new leader gets elected by the controller, the old leader should stop assuming the role of leader. Certain times, a split brain does happen.
+2. A new leader should confirm from all other nodes that it is a new leader. When all followers have accepted a node as their new leader, they should not accept PUT requests from any other node.
+3. Consider a case where
+    - Three nodes: A (leader) and two followers B and C.
+    - Network partition happens and B and C cannot reach A. 
+    - They initiate a new election and B becomes the new leader. C accepts that B is the new leader
+    - Network partition resolves and A comes again and tries to sending writes to B and C.
+    - B and C reject the writes. B inform A that it is the new leader. 
+    - A now becomes a follower and accepts whatever writes that B sends it.
+
+### No leader
+1. A leader fails and for a split second, controller does not elect a new leader and the entire replication group is not available.
+2. We can have the controller keep tab on the healthcheck returned by the leader and if it does'nt return healthcheck in 500ms, initiate new election.
+3. Controller can also ensure that whatever stats are being captured and updated in meta-data manager.
+4. A leader going down once in say 10-15 days is fine, but not fine if it goes down every few minutes or hours.
+
+### Network split in meta-data managers / Outdated meta-data
+1. This is also a set of services functioning as a meta-data manager in unison. 
+2. Let's suppose that there are 5 nodes and 2 nodes are not reachable. Also if the leader is a part of the 3 nodes, these 2 nodes will not receive any meta-data updates and will have old meta-data.
+3. If due to old meta-data, request gets redirected to the wrong replication group. It informs the meta-data manager that I'm not the owner of this partition, please check your meta-data. This meta-data manager node will try to connect with the leader and try to update it's meta-data. Assuming that by then the network partition gets resolved.
