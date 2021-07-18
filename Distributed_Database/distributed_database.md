@@ -1,4 +1,4 @@
-Video: Tushar Roy - https://www.youtube.com/watch?v=rnZmdmlR-2M (29:26)
+Video: Tushar Roy - https://www.youtube.com/watch?v=rnZmdmlR-2M
 # Designing a distributed key-value database
 
 ## Characteristics
@@ -115,3 +115,23 @@ If we get two PUTs - PUT(D, 150) and PUT(D, 100) at the same time, the PUT which
 1. This is also a set of services functioning as a meta-data manager in unison. 
 2. Let's suppose that there are 5 nodes and 2 nodes are not reachable. Also if the leader is a part of the 3 nodes, these 2 nodes will not receive any meta-data updates and will have old meta-data.
 3. If due to old meta-data, request gets redirected to the wrong replication group. It informs the meta-data manager that I'm not the owner of this partition, please check your meta-data. This meta-data manager node will try to connect with the leader and try to update it's meta-data. Assuming that by then the network partition gets resolved.
+
+### Node goes down before applying changes to B-Tree/LSM-tree
+1. We can replay the logs from the append-only logs to reapply the updates to the B-Tree/LSM tree after fixing the node.
+
+### Incorrect meta-data in the meta-data manager
+1. Replication group rejects incorrect data via consensus and so this point will be handled.
+
+### Multiple node failures.
+1. Have a 5-node replication group.
+2. Controller can do rigorous checks on the system health of the nodes
+
+## Storage Capacity
+1. 5 nodes of 1 TB capacity each = 5 TB for 5 nodes.
+2. Replication factor of 1000 = 5 PB of total data stored.
+3. Limit on key value data size = 1 MB above which a blob storage should be used.
+4. Overhead on storage of each key-value is 30 bytes of which 16 bytes are for the sequencer and 15 bytes for storing data in LSM tree/B+tree
+5. IOPS per replication group = 2000
+6. Metadata overhead per replication group = 30 bytes 
+7. Metadata overhead per table = 30 bytes
+8. RAM on request manager = 16 GB
