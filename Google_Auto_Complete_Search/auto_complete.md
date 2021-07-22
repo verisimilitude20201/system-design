@@ -1,6 +1,6 @@
 # Video: 
 
-Tushar Roy https://www.youtube.com/watch?v=us0qySiUsGU&list=PLrmLmBdmIlps7GJJWW9I7N0P0rB0C3eY2&index=4(17:03)
+Tushar Roy https://www.youtube.com/watch?v=us0qySiUsGU&list=PLrmLmBdmIlps7GJJWW9I7N0P0rB0C3eY2&index=4
 
 # Google Auto-Complete System for searching text
 
@@ -47,16 +47,22 @@ Autocomplete design involves two flows -
    - You can go on splitting the ranges till the data can be stored properly in Zookeeper.
 
 6. Zookeeper is good for reads and writing data (especially configuration information) of a low size. 
+7. We might cache some portions of the Trie in a CDN so that the results can be better shared localized to a specific regions.
+8. If a user searches for 'ba', we may as well return 'bat', 'bath', 'bathes' and so on.
 
 ## Data collection flow
 1. Our data collection flow is getting a stream of terms and their weights. How the weights are computed is'nt important.
 2. There are 3-4 aggregator services which basically do the job of aggregating the terms (may be the terms are passed to a hash function and terms with same hash go to same aggregator). The aggregation happens over a certain time period (say hourly data) and dumps data to a table in Cassandra. The hourly data can be reduced to a daily data to give rise to the below table and it's values.
         
-        Phrase  Time Period     Sum of Weights
-        bat      Nov 1 2000          11015
-        bat      Nov 2 2000          10000
-        bat      Nov 3 2000          19000
+        Phrase  Time Period     Sum of Weights  prefix
+        bat      Nov 1 2000          11015       ba
+        bat      Nov 2 2000          10000       ba
+        bat      Nov 3 2000          19000       ba
 
 3. Phrase having less weights are not going to show in auto-complete.
 4. We are storing data with the time attached to show more recent search terms in auto-complete.
-5. Appliers applying data to a Trie
+5. Appliers applying data to the Trie. 
+  - For each of the 3 ranges (a-bc, bc-k and k-$) we have 3 different appliers. 
+  - Each applier fetches data from Cassandra corresponding to it's own key range, computes the weight of the search term corresponding to the time, sum of weights 
+  - The applier chooses those terms which are having higher weights and creates an in-memory trie. For each node in the Trie, we store the top K words in that node. 
+  - Instead of picking that up from Cassandra, we can publish the terms keyed by the score into a Kafka topic with the entries ordered by the score in reverse order.
